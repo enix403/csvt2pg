@@ -1,0 +1,34 @@
+delete all
+import all
+
+
+(delete, import)
+    delete table
+    mark_create_table()
+    import()
+
+(delete, NO import):
+    if table exists:
+        delete all rows (not table)
+
+(NO delete, import):
+    if table does not exist:
+        mark_create_table()
+    import()
+
+(NO delete, NO import):
+    bye
+
+-------------------------------
+
+import():
+    read columns from first csv (= data_columns)
+    
+    if create table is marked:
+        read file_columns from columns.txt
+        final columns = file_columns != null ? file_columns : data_columns 
+        create_table(columns)
+
+
+    read all further csvs
+        if any csv has a column mismatch, report error

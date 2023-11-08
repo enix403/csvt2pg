@@ -86,4 +86,6 @@ def ensure_table():
     with engine.begin() as conn:
         conn.execute(DDL(query))
 
-ensure_table()
+
+# Delete all data in table? Yes/No
+# Import all data? Yes/No
