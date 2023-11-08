@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, Engine, text, DDL
 from sqlalchemy.engine import URL
+import click
 
 from configparser import ConfigParser
 
@@ -17,6 +18,8 @@ C_DB_HOST = config.get('db_host', None)
 C_DB_PORT = config.get('db_port', None)
 C_TABLE_NAME = config.get('table_name', None)
 C_CSV_DIRECTORY = config.get('csv_directory', None)
+
+SCHEMA_NAME = "public"
 
 def parse_port(port: str):
     try:
@@ -60,32 +63,66 @@ def ensure_db():
     conn.close()
 
 
-ensure_db()
+# def ensure_table():
+#     query = f"""
+#         CREATE OR REPLACE FUNCTION create_app_table()
+#           RETURNS void
+#           LANGUAGE plpgsql AS
+#         $func$
+#         BEGIN
+#            IF EXISTS (SELECT FROM pg_catalog.pg_tables 
+#                       WHERE  schemaname = 'public'
+#                       AND    tablename  = '{C_TABLE_NAME}') THEN
+#               RAISE NOTICE 'Table public.{C_TABLE_NAME} already exists.';
+#            ELSE
+#               CREATE TABLE public.{C_TABLE_NAME} (i integer);
+#            END IF;
+#         END
+#         $func$;
+#         SELECT create_app_table();
+#     """
+
+#     with engine.begin() as conn:
+#         conn.execute(DDL(query))
 
 engine = create_engine(create_url())
 
-def ensure_table():
-    query = f"""
-        CREATE OR REPLACE FUNCTION create_app_table()
-          RETURNS void
-          LANGUAGE plpgsql AS
-        $func$
-        BEGIN
-           IF EXISTS (SELECT FROM pg_catalog.pg_tables 
-                      WHERE  schemaname = 'public'
-                      AND    tablename  = '{C_TABLE_NAME}') THEN
-              RAISE NOTICE 'Table public.{C_TABLE_NAME} already exists.';
-           ELSE
-              CREATE TABLE public.{C_TABLE_NAME} (i integer);
-           END IF;
-        END
-        $func$;
-        SELECT create_app_table();
-    """
+def table_exists():
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = :tablename"),
+            {'tablename': C_TABLE_NAME}
+        )
+
+        return result.rowcount > 0
+
+def delete_table(rows_only: bool = True):
+    if not table_exists():
+        print("Skip")
+        return
+
+    if rows_only:
+        stmt = "DELETE FROM {}".format(C_TABLE_NAME)
+    else:
+        stmt = "DROP TABLE {}".format(C_TABLE_NAME)
 
     with engine.begin() as conn:
-        conn.execute(DDL(query))
+        print(stmt)
+        conn.execute(DDL(stmt))
 
+if __name__ == "__main__":
+    # delete_all = click.confirm("Delete all data in table?", default=False)
+    # import_all = click.confirm("Import all data?", default=False)
 
-# Delete all data in table? Yes/No
-# Import all data? Yes/No
+    # command = (delete_all, import_all)
+    command = (True, True)
+
+    if command == (True, True):
+        # Completely delete table
+        delete_table(rows_only=False)
+    elif command == (True, False):
+        print(2)
+    elif command == (False, True):
+        print(3)
+    elif command == (False, False):
+        print(4)

@@ -3,7 +3,8 @@ import all
 
 
 (delete, import)
-    delete table
+    if table exists:
+        delete table
     mark_create_table()
     import()
 
