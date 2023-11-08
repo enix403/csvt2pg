@@ -1,0 +1,53 @@
+1. Build python3 script to import large csv files into postgresql.
+
+2. High performance and low resource requirements are of utmost importance
+
+3. Call it csv2pg.py
+
+4. All configuration details will be in a config.txt file.
+
+5. I want to start like so: python3 csv2pg.py /volumes/share/folder/config.txt
+
+6. Give me config.txt file where i can enter
+    db_name = dbname
+    db_user = username
+    db_password = password
+    db_host = hostname
+    db_port = port
+    table_name = tablename
+    csv_directory = /volumes/share/folder/csvs
+    [and whatever else we need]
+
+7. Check if dbase exists, if not create it with credentials provided
+
+8. Check if table exists or create with details provided
+
+9. Get the columns for the table from a file called columns.txt located in the same directory as config.txt
+    a. Format will be 
+        COLUMNNAME DATATYPE > one per line
+        Example: COLUMN1 TEXT
+
+10. Need progress indicator like tqdm to provide as much detail as possible in terminal
+
+11. Need ability to debug on screen and create log of detailed progress saved to same directory as CSVs. Call it debug.log
+    a. I want to use a flag like -debug to activate debug
+    b. Example: python3 csv2pg.py /volumes/share/folder/config.txt -debug
+
+12. Need ability to update existing records
+    Example: python3 csv2pg.py /volumes/share/folder/config.txt -update
+
+13. Need the following logic:
+    After starting the program ask 2 questions
+        1. Delete all data in table? Yes/No
+        2. Import all data? Yes/No
+        Possible scenarios:
+        A. 1=yes & 2=yes > delete all datain table, recreate table (if necessary) and then import all data
+        B. 1=yes & 2=no > delete all data, quit program
+        C. 1=no & 2=yes > Only import data
+        D. 1=no & 2=no > quit program
+        
+14. If special column mappings are required they will come from a file called mapcolumns.txt located in the same directory as config.txt
+    a. Format will be: CSV_COLUMN1 TABLE_COLUMN1….
+    b. If the file does not exist assume that the CSV has column names that match the ones in the table.
+
+
