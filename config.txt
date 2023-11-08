@@ -3,5 +3,5 @@ db_user = user1
 db_password = user1
 db_host = localhost
 db_port = 8554
-table_name = table_hehe
+table_name = app_table
 csv_directory = /home/radium/ser/prof/csv2pg/csvs

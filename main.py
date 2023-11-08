@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, Engine, text, DDL
 from sqlalchemy.engine import URL
 
 from configparser import ConfigParser
@@ -25,18 +25,22 @@ def parse_port(port: str):
     except:
         return 5432
 
-def ensure_db():
-    url = URL.create(
+def create_url(use_database: bool = True):
+    return URL.create(
         drivername="postgresql",
         username=C_DB_USER,
         password=C_DB_PASSWORD,
         host=C_DB_HOST,
-        port=parse_port(C_DB_PORT)
+        port=parse_port(C_DB_PORT),
+        database=C_DB_NAME if use_database else None
     )
+
+def ensure_db():
+    url = create_url(use_database=False)
 
     engine = create_engine(url)
     conn = engine.connect()
-    
+
     result = conn.execute(
         text(
             f"SELECT 1 FROM pg_database WHERE datname = :dbname"
@@ -55,4 +59,31 @@ def ensure_db():
 
     conn.close()
 
+
 ensure_db()
+
+engine = create_engine(create_url())
+
+def ensure_table():
+    query = f"""
+        CREATE OR REPLACE FUNCTION create_app_table()
+          RETURNS void
+          LANGUAGE plpgsql AS
+        $func$
+        BEGIN
+           IF EXISTS (SELECT FROM pg_catalog.pg_tables 
+                      WHERE  schemaname = 'public'
+                      AND    tablename  = '{C_TABLE_NAME}') THEN
+              RAISE NOTICE 'Table public.{C_TABLE_NAME} already exists.';
+           ELSE
+              CREATE TABLE public.{C_TABLE_NAME} (i integer);
+           END IF;
+        END
+        $func$;
+        SELECT create_app_table();
+    """
+
+    with engine.begin() as conn:
+        conn.execute(DDL(query))
+
+ensure_table()
