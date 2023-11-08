@@ -1,6 +1,9 @@
+import click
+import csv
+from pathlib import Path
+
 from sqlalchemy import create_engine, Engine, text, DDL
 from sqlalchemy.engine import URL
-import click
 
 from configparser import ConfigParser
 
@@ -85,9 +88,21 @@ def delete_table():
         print(stmt)
         conn.execute(DDL(stmt))
 
+def csv_columns():
+    pass
 
 def init_import():
-    pass
+    folder = Path('./csvs')
+    files = sorted(folder.glob('*.csv'))
+
+    if len(files) == 0:
+        print("No CSV found")
+        return
+
+    # awaiting_columns = 
+    # for file in files:
+
+
 
 if __name__ == "__main__":
     # delete_all = click.confirm("Delete all data in table?", default=False)
@@ -98,8 +113,8 @@ if __name__ == "__main__":
 
     if command == (True, True):
         # Completely delete table
-        delete_table()
-        needs_create_table = True
+        # delete_table()
+        # needs_create_table = True
         init_import()
     elif command == (True, False):
         print(2)
