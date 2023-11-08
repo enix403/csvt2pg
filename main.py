@@ -62,30 +62,8 @@ def ensure_db():
 
     conn.close()
 
-
-# def ensure_table():
-#     query = f"""
-#         CREATE OR REPLACE FUNCTION create_app_table()
-#           RETURNS void
-#           LANGUAGE plpgsql AS
-#         $func$
-#         BEGIN
-#            IF EXISTS (SELECT FROM pg_catalog.pg_tables 
-#                       WHERE  schemaname = 'public'
-#                       AND    tablename  = '{C_TABLE_NAME}') THEN
-#               RAISE NOTICE 'Table public.{C_TABLE_NAME} already exists.';
-#            ELSE
-#               CREATE TABLE public.{C_TABLE_NAME} (i integer);
-#            END IF;
-#         END
-#         $func$;
-#         SELECT create_app_table();
-#     """
-
-#     with engine.begin() as conn:
-#         conn.execute(DDL(query))
-
 engine = create_engine(create_url())
+needs_create_table = False
 
 def table_exists():
     with engine.connect() as conn:
@@ -96,19 +74,20 @@ def table_exists():
 
         return result.rowcount > 0
 
-def delete_table(rows_only: bool = True):
+def delete_table():
     if not table_exists():
         print("Skip")
         return
 
-    if rows_only:
-        stmt = "DELETE FROM {}".format(C_TABLE_NAME)
-    else:
-        stmt = "DROP TABLE {}".format(C_TABLE_NAME)
+    stmt = "DROP TABLE {}".format(C_TABLE_NAME)
 
     with engine.begin() as conn:
         print(stmt)
         conn.execute(DDL(stmt))
+
+
+def init_import():
+    pass
 
 if __name__ == "__main__":
     # delete_all = click.confirm("Delete all data in table?", default=False)
@@ -119,7 +98,9 @@ if __name__ == "__main__":
 
     if command == (True, True):
         # Completely delete table
-        delete_table(rows_only=False)
+        delete_table()
+        needs_create_table = True
+        init_import()
     elif command == (True, False):
         print(2)
     elif command == (False, True):
