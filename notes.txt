@@ -19,27 +19,3 @@ import all
 
 (NO delete, NO import):
     bye
-
--------------------------------
-
-import():
-    read columns from first csv (= data_columns)
-    
-    if create table is marked:
-        read file_columns from columns.txt
-        final columns = file_columns != null ? file_columns : data_columns 
-        create_table(columns)
-
-
-    read all further csvs
-        if any csv has a column mismatch, report error
-
-
-class GlobalConfig:
-    C_DB_NAME: str
-    C_DB_USER: str
-    C_DB_PASSWORD: str
-    C_DB_HOST: str
-    C_DB_PORT: str
-    C_TABLE_NAME: str
-    C_CSV_DIRECTORY: str
