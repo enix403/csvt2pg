@@ -108,10 +108,12 @@ def create_table(csv_columns):
     syn = ",\n".join([f"\"{col[0]}\" {col[1]}" for col in columns])
 
     stmt = "CREATE TABLE {} ({});".format(C_TABLE_NAME, syn)
-    print(stmt)
+    # print(stmt)
 
     with engine.begin() as conn:
         conn.execute(DDL(stmt))
+
+    return len(columns)
 
 
 def init_import(needs_create_table: bool):
@@ -123,7 +125,6 @@ def init_import(needs_create_table: bool):
         return
 
     awaiting_columns = needs_create_table
-    csv_columns = None
 
     active_chunk = []
     max_chunk_len = 5
@@ -131,6 +132,21 @@ def init_import(needs_create_table: bool):
     def send_chunk():
         if len(active_chunk) == 0:
             return
+
+        col_count = len(active_chunk[0])
+
+        placeholder_values = ",".join([f":v{i}" for i in range(col_count)])
+        stmt = "INSERT INTO {} VALUES ({})".format(C_TABLE_NAME, placeholder_values)
+        values = [
+            {
+                f"v{i}": val
+                for i, val in enumerate(row)
+            }
+            for row in active_chunk
+        ]
+
+        with engine.begin() as conn:
+            conn.execute(text(stmt), values)
 
         active_chunk.clear()
 
@@ -141,8 +157,7 @@ def init_import(needs_create_table: bool):
                 if i == 0:
                     if awaiting_columns:
                         awaiting_columns = False
-                        csv_columns = row
-                        create_table(csv_columns)
+                        create_table(row)
                     continue
 
                 active_chunk.append(row)
