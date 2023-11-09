@@ -171,12 +171,12 @@ def init_import(needs_create_table: bool):
 
         active_chunk.clear()
 
-    pbar_rows = tqdm(desc="Adding rows")
+    pbar_rows = tqdm(desc="Processing rows")
     pbar_files = tqdm(total=len(files), desc="Files read")
 
     for file in files:
         logging.info("Reading file {}".format(file))
-        pbar_rows.set_description("Adding rows from file \"{}\"".format(str(file)))
+        pbar_rows.set_description("Processing rows from file \"{}\"".format(str(file)))
         with open(file, newline='') as f:
             reader = csv.reader(f)
             pbar_rows.update()
@@ -211,6 +211,7 @@ if __name__ == "__main__":
 
     parser.add_argument('config_file', action='store', type=str, help="location of config.txt file")
     parser.add_argument('--debug', action='store_true', help="Enable debug mode")
+    parser.add_argument('--update', action='store_true', help="Update existing records")
 
     args = parser.parse_args()
 
@@ -227,14 +228,16 @@ if __name__ == "__main__":
 
     engine = create_engine(create_url())
 
-    delete_all = click.confirm("Delete all data in table?", default=False)
-    import_all = click.confirm("Import all data?", default=False)
+    if args.update:
+        delete_all = click.confirm("Delete all data in table?", default=False)
+        import_all = click.confirm("Import all data?", default=False)
 
-    command = (delete_all, import_all)
-    # command = (True, False)
+        command = (delete_all, import_all)
+    else:
+        command = (True, True)
+
 
     if command == (True, True):
-        # Completely delete table
         logging.info("Deleting table {}".format(g.C_TABLE_NAME))
         delete_table()
         print("Table deleted")
