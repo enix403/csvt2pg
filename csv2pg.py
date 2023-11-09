@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import csv
 import logging
 import argparse
@@ -146,7 +148,7 @@ def init_import(needs_create_table: bool):
     awaiting_columns = needs_create_table
 
     active_chunk = []
-    max_chunk_len = 5
+    max_chunk_len = 50
 
     count = 0
 
