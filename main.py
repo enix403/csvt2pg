@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import click
+from tqdm import tqdm
 from sqlalchemy import create_engine, Engine, text, DDL
 from sqlalchemy.engine import URL
 
@@ -98,7 +99,6 @@ def table_exists():
 
 def delete_table():
     if not table_exists():
-        print("Skip")
         return
 
     stmt = "DROP TABLE {}".format(g.C_TABLE_NAME)
@@ -136,16 +136,6 @@ def create_table(csv_columns):
 
 
 def init_import(needs_create_table: bool):
-    if g.C_DEBUG:
-        logging.basicConfig(
-            filename="debug.log",
-            filemode='a',
-            format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-            datefmt='%H:%M:%S',
-            level=logging.DEBUG
-        )
-
-
     folder = Path(g.C_CSV_DIRECTORY)
     files = sorted(folder.glob('*.csv'))
 
@@ -181,10 +171,15 @@ def init_import(needs_create_table: bool):
 
         active_chunk.clear()
 
+    pbar_rows = tqdm(desc="Adding rows")
+    pbar_files = tqdm(total=len(files), desc="Files read")
+
     for file in files:
         logging.info("Reading file {}".format(file))
+        pbar_rows.set_description("Adding rows from file \"{}\"".format(str(file)))
         with open(file, newline='') as f:
             reader = csv.reader(f)
+            pbar_rows.update()
             for i, row in enumerate(reader):
                 if i == 0:
                     if awaiting_columns:
@@ -199,6 +194,10 @@ def init_import(needs_create_table: bool):
 
             count += len(active_chunk)
             send_chunk()
+        pbar_files.update()
+
+    pbar_rows.close()
+    pbar_files.close()
 
     count += len(active_chunk)
     send_chunk()
@@ -216,22 +215,42 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     init_config(args.config_file, debug=args.debug)
+
+    if g.C_DEBUG:
+        logging.basicConfig(
+            filename="debug.log",
+            filemode='a',
+            format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+            datefmt='%H:%M:%S',
+            level=logging.DEBUG
+        )
+
     engine = create_engine(create_url())
 
     delete_all = click.confirm("Delete all data in table?", default=False)
     import_all = click.confirm("Import all data?", default=False)
 
     command = (delete_all, import_all)
+    # command = (True, False)
 
     if command == (True, True):
         # Completely delete table
+        logging.info("Deleting table {}".format(g.C_TABLE_NAME))
         delete_table()
+        print("Table deleted")
+
+        logging.info("Importing data")
         init_import(needs_create_table=True)
+        print("Import complete")
     elif command == (True, False):
+        logging.info("Deleting table {}".format(g.C_TABLE_NAME))
         delete_table()
+        print("Table deleted")
     elif command == (False, True):
         create_tbl = not table_exists()
+        logging.info("Importing data".format(g.C_TABLE_NAME))
         init_import(needs_create_table=create_tbl)
+        print("Import complete")
     elif command == (False, False):
         print("Quitting")
 
