@@ -66,7 +66,6 @@ def ensure_db():
     conn.close()
 
 engine = create_engine(create_url())
-needs_create_table = False
 
 def table_exists():
     with engine.connect() as conn:
@@ -85,13 +84,37 @@ def delete_table():
     stmt = "DROP TABLE {}".format(C_TABLE_NAME)
 
     with engine.begin() as conn:
-        print(stmt)
+        # print(stmt)
         conn.execute(DDL(stmt))
 
-def csv_columns():
-    pass
+def create_table(csv_columns):
+    columns = []
+    with open('columns.txt') as f:
+        for line in f:
+            parts = line.strip().split(" ")
+            name = parts[0]
+            datatype = parts[1]
+            columns.append((name, datatype))
 
-def init_import():
+    # mappings = {}
+    # if Path('mapcolumns.txt').is_file():
+    #     with open('mapcolumns.txt') as f:
+    #         for line in f:
+    #             line = line.strip().split(" ")
+    #             map_from = line[0] 
+    #             map_to = line[1] 
+    #             mappings[map_from] = map_to
+
+    syn = ",\n".join([f"\"{col[0]}\" {col[1]}" for col in columns])
+
+    stmt = "CREATE TABLE {} ({});".format(C_TABLE_NAME, syn)
+    print(stmt)
+
+    with engine.begin() as conn:
+        conn.execute(DDL(stmt))
+
+
+def init_import(needs_create_table: bool):
     folder = Path('./csvs')
     files = sorted(folder.glob('*.csv'))
 
@@ -99,8 +122,37 @@ def init_import():
         print("No CSV found")
         return
 
-    # awaiting_columns = 
-    # for file in files:
+    awaiting_columns = needs_create_table
+    csv_columns = None
+
+    active_chunk = []
+    max_chunk_len = 5
+
+    def send_chunk():
+        if len(active_chunk) == 0:
+            return
+
+        active_chunk.clear()
+
+    for file in files:
+        with open(file, newline='') as f:
+            reader = csv.reader(f)
+            for i, row in enumerate(reader):
+                if i == 0:
+                    if awaiting_columns:
+                        awaiting_columns = False
+                        csv_columns = row
+                        create_table(csv_columns)
+                    continue
+
+                active_chunk.append(row)
+                if len(active_chunk) >= max_chunk_len:
+                    send_chunk()
+
+            send_chunk()
+
+    send_chunk()
+
 
 
 
@@ -113,9 +165,8 @@ if __name__ == "__main__":
 
     if command == (True, True):
         # Completely delete table
-        # delete_table()
-        # needs_create_table = True
-        init_import()
+        delete_table()
+        init_import(needs_create_table=True)
     elif command == (True, False):
         print(2)
     elif command == (False, True):
