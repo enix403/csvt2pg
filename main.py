@@ -172,7 +172,7 @@ def init_import(needs_create_table: bool):
         active_chunk.clear()
 
     pbar_rows = tqdm(desc="Processing rows")
-    pbar_files = tqdm(total=len(files), desc="Files read")
+    pbar_files = tqdm(total=len(files), desc="Files read", colour="#E36576")
 
     for file in files:
         logging.info("Reading file {}".format(file))
@@ -228,7 +228,7 @@ if __name__ == "__main__":
 
     engine = create_engine(create_url())
 
-    if args.update:
+    if not args.update:
         delete_all = click.confirm("Delete all data in table?", default=False)
         import_all = click.confirm("Import all data?", default=False)
 
