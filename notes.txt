@@ -10,7 +10,7 @@ import all
 
 (delete, NO import):
     if table exists:
-        delete all rows (not table)
+        delete table
 
 (NO delete, import):
     if table does not exist:

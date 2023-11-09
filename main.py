@@ -169,22 +169,21 @@ def init_import(needs_create_table: bool):
     send_chunk()
 
 
-
-
 if __name__ == "__main__":
-    # delete_all = click.confirm("Delete all data in table?", default=False)
-    # import_all = click.confirm("Import all data?", default=False)
+    delete_all = click.confirm("Delete all data in table?", default=False)
+    import_all = click.confirm("Import all data?", default=False)
 
-    # command = (delete_all, import_all)
-    command = (True, True)
+    command = (delete_all, import_all)
+    # command = (True, True)
 
     if command == (True, True):
         # Completely delete table
         delete_table()
         init_import(needs_create_table=True)
     elif command == (True, False):
-        print(2)
+        delete_table()
     elif command == (False, True):
-        print(3)
+        create_tbl = not table_exists()
+        init_import(needs_create_table=create_tbl)
     elif command == (False, False):
-        print(4)
+        print("Quitting")
