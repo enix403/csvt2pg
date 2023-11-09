@@ -1,4 +1,5 @@
 import csv
+import logging
 import argparse
 from pathlib import Path
 
@@ -17,10 +18,11 @@ class GlobalConfig:
     C_DB_PORT: str
     C_TABLE_NAME: str
     C_CSV_DIRECTORY: str
+    C_DEBUG: bool
 
 g = GlobalConfig()
 
-def init_config(config_file_loc: str):
+def init_config(config_file_loc: str, debug: bool):
     config = ConfigParser()
     with open(config_file_loc) as stream:
         # Append a fake section
@@ -38,6 +40,7 @@ def init_config(config_file_loc: str):
     g.C_DB_PORT = config.get('db_port', None)
     g.C_TABLE_NAME = config.get('table_name', None)
     g.C_CSV_DIRECTORY = config.get('csv_directory', None)
+    g.C_DEBUG = bool(debug)
 
 SCHEMA_NAME = "public"
 
@@ -133,6 +136,16 @@ def create_table(csv_columns):
 
 
 def init_import(needs_create_table: bool):
+    if g.C_DEBUG:
+        logging.basicConfig(
+            filename="debug.log",
+            filemode='a',
+            format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+            datefmt='%H:%M:%S',
+            level=logging.DEBUG
+        )
+
+
     folder = Path(g.C_CSV_DIRECTORY)
     files = sorted(folder.glob('*.csv'))
 
@@ -144,6 +157,8 @@ def init_import(needs_create_table: bool):
 
     active_chunk = []
     max_chunk_len = 5
+
+    count = 0
 
     def send_chunk():
         if len(active_chunk) == 0:
@@ -167,6 +182,7 @@ def init_import(needs_create_table: bool):
         active_chunk.clear()
 
     for file in files:
+        logging.info("Reading file {}".format(file))
         with open(file, newline='') as f:
             reader = csv.reader(f)
             for i, row in enumerate(reader):
@@ -178,11 +194,16 @@ def init_import(needs_create_table: bool):
 
                 active_chunk.append(row)
                 if len(active_chunk) >= max_chunk_len:
+                    count += len(active_chunk)
                     send_chunk()
 
+            count += len(active_chunk)
             send_chunk()
 
+    count += len(active_chunk)
     send_chunk()
+
+    logging.info("{} row(s) added".format(count))
 
 
 if __name__ == "__main__":
@@ -194,7 +215,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    init_config(args.config_file)
+    init_config(args.config_file, debug=args.debug)
     engine = create_engine(create_url())
 
     delete_all = click.confirm("Delete all data in table?", default=False)
