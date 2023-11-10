@@ -106,7 +106,6 @@ def delete_table():
     stmt = "DROP TABLE {}".format(g.C_TABLE_NAME)
 
     with engine.begin() as conn:
-        # print(stmt)
         conn.execute(DDL(stmt))
 
 def get_col_mappings():
@@ -169,17 +168,39 @@ def import_file(reader, csv_cols):
 
     count = 0
 
+    placeholder_values = [f":v{i}" for i in range(len(csv_cols))]
+    base_insert_stmt = "INSERT INTO {} ({}) VALUES ({});".format(
+        g.C_TABLE_NAME,
+        ','.join([f'"{col}"' for col in csv_cols]),
+        ",".join(placeholder_values)
+    )
+
     def send_chunk():
+        num_rows = len(active_chunk)
+
+        if num_rows == 0:
+            return 0
+
+        values = [
+            {
+                f"v{i}": val
+                for i, val in enumerate(row)
+            }
+            for row in active_chunk
+        ]
+
+        with engine.begin() as conn:
+            conn.execute(text(base_insert_stmt), values)
+
         active_chunk.clear()
+        return num_rows
 
     for row in reader:
         active_chunk.append(row)
         if len(active_chunk) >= max_chunk_len:
-            count += len(active_chunk)
-            send_chunk()
+            count += send_chunk()
 
-    count += len(active_chunk)
-    send_chunk()
+    count += send_chunk()
 
     return count
 
