@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import csv
+import time
 import logging
 import argparse
 from pathlib import Path
@@ -230,14 +231,31 @@ def import_file(reader, csv_cols, removed_indicies, pbar_rows):
         active_chunk.append(row)
         if len(active_chunk) >= max_chunk_len:
             count += send_chunk()
+        # time.sleep(0.5)
 
     count += send_chunk()
 
     return count
 
+def buf_count_lines(filename):
+    f = open(filename)
+    lines = 0
+    buf_size = 1024 * 1024
+    read_f = f.read # loop optimization
+
+    buf = read_f(buf_size)
+    while buf:
+        lines += buf.count('\n')
+        buf = read_f(buf_size)
+
+    f.close()
+
+    return lines
+
+
 def process_filelist(files):
-    pbar_rows = tqdm(desc="Processing rows")
     pbar_files = tqdm(total=len(files), desc="Files read", colour="#E36576")
+    pbar_rows = tqdm(total=0, colour="#899CD0")
 
     prev_cols = infer_cols_from_db()
     col_mappings = get_col_mappings()
@@ -245,8 +263,9 @@ def process_filelist(files):
     total_rows = 0
 
     for filepath in files:
-        pbar_rows.reset()
-        pbar_rows.set_description("Processing rows from file \"{}\"".format(str(filepath.name)))
+        estimated_row_count = buf_count_lines(filepath)
+        pbar_rows.set_description("Processing file \"{}\"".format(str(filepath.name)))
+        pbar_rows.reset(total=estimated_row_count)
         logging.info("Reading file {}".format(filepath))
 
         file = filepath.open()
@@ -260,8 +279,9 @@ def process_filelist(files):
         total_rows += import_file(reader, csv_cols, removed_indicies, pbar_rows)
         pbar_files.update()
 
-    pbar_rows.close()
     pbar_files.close()
+    pbar_rows.close()
+
     logging.info("{} row(s) added".format(total_rows))
 
 

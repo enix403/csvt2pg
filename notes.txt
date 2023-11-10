@@ -28,7 +28,12 @@ Import():
         apply mapcolumns to csv_cols
 
 
+env LDFLAGS="-I/usr/local/opt/openssl/include -L/usr/local/opt/openssl/lib" python3 -m pip --no-cache install psycopg2==2.9.9
 
+Alright try this
+
+
+env LDFLAGS="-I/opt/homebrew/opt/openssl/include -L/opt/homebrew/opt/openssl/lib" python3 -m pip --no-cache install psycopg2==2.9.9
 
 """
 def init_import(needs_create_table: bool):
@@ -109,3 +114,24 @@ def init_import(needs_create_table: bool):
 
 """
 
+
+
+Hi
+
+So now in this version of the script, the use of columns.txt file is removed completely. Instead the columns are read directly from the CSV files and any mappings can be applied using mapcolumns.txt.
+
+There is a slight change in the format of mapcolumns.txt. There is a ">" between the column names i.e each mapping is of the form:
+
+Column A > Column B
+
+This is so that spaces do not create any confusion because otherwise e.g "Company Name Company" could mean either "Company > Name Company" or "Company Name > Company". So we add the ">" for clarity.
+
+There is also an additional feature that you can ignore columns from the CSV by mapping them to the character '*'. for example
+
+Phone > *
+
+This will ignore the "Phone" column from the CSV files i.e it will not store it in the database.
+
+Please let me know if you have any feedback or face any problems
+
+Thanks
