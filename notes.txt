@@ -19,3 +19,93 @@ import all
 
 (NO delete, NO import):
     bye
+
+Import():
+    csv_cols = read cols from first CSV
+
+    if needs_create_table:
+        load mapcolumns.txt
+        apply mapcolumns to csv_cols
+
+
+
+
+"""
+def init_import(needs_create_table: bool):
+    folder = Path(g.C_CSV_DIRECTORY)
+    files = sorted(folder.glob('*.csv'))
+
+    if len(files) == 0:
+        print("No CSV found")
+        return
+
+    active_chunk = []
+    max_chunk_len = 50
+
+    def send_chunk():
+        if len(active_chunk) == 0:
+            return
+
+        col_count = len(active_chunk[0])
+
+        placeholder_values = ",".join([f":v{i}" for i in range(col_count)])
+        stmt = "INSERT INTO {} VALUES ({})".format(g.C_TABLE_NAME, placeholder_values)
+        values = [
+            {
+                f"v{i}": val
+                for i, val in enumerate(row)
+            }
+            for row in active_chunk
+        ]
+
+        with engine.begin() as conn:
+            conn.execute(text(stmt), values)
+
+        active_chunk.clear()
+
+    awaiting_columns = True
+    count = 0
+    tbl_columns = None
+
+    pbar_rows = tqdm(desc="Processing rows")
+    pbar_files = tqdm(total=len(files), desc="Files read", colour="#E36576")
+
+    for file in files:
+        logging.info("Reading file {}".format(file))
+        pbar_rows.set_description("Processing rows from file \"{}\"".format(str(file)))
+
+        # Open the file
+        f =  open(file, newline='')
+
+        reader = csv.reader(f)
+        for i, row in enumerate(reader):
+            pbar_rows.update()
+            if i == 0:
+                if awaiting_columns:
+                    awaiting_columns = False
+                    tbl_columns = finalize_columns(row)
+                    # if needs_create_table:
+                        # create_table(tbl_columns)
+                continue
+
+            active_chunk.append(row)
+            if len(active_chunk) >= max_chunk_len:
+                count += len(active_chunk)
+                send_chunk()
+
+        count += len(active_chunk)
+        send_chunk()
+
+        f.close()
+        pbar_files.update()
+
+    pbar_rows.close()
+    pbar_files.close()
+
+    count += len(active_chunk)
+    send_chunk()
+
+    logging.info("{} row(s) added".format(count))
+
+"""
+

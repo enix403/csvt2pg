@@ -109,35 +109,107 @@ def delete_table():
         # print(stmt)
         conn.execute(DDL(stmt))
 
-def create_table(csv_columns):
-    columns = []
-    with open(g.C_CONFIGDIR / 'columns.txt') as f:
-        for line in f:
-            parts = line.strip().split(" ")
-            name = parts[0]
-            datatype = parts[1]
-            columns.append((name, datatype))
+def get_col_mappings():
+    mappings = {}
+    map_file = Path(g.C_CONFIGDIR / 'mapcolumns.txt')
+    if map_file.is_file():
+        with map_file.open() as f:
+            for line in f:
+                parts = line.split(">")
+                map_from = parts[0].strip()
+                map_to = parts[1].strip()
+                mappings[map_from] = map_to
 
-    # mappings = {}
-    # if Path('mapcolumns.txt').is_file():
-    #     with open('mapcolumns.txt') as f:
-    #         for line in f:
-    #             line = line.strip().split(" ")
-    #             map_from = line[0] 
-    #             map_to = line[1] 
-    #             mappings[map_from] = map_to
+    return mappings
 
-    syn = ",\n".join([f"\"{col[0]}\" {col[1]}" for col in columns])
+def diff_additions(old, new):
+    s_old = set(old)
+    s_new = set(new)
 
-    stmt = "CREATE TABLE {} ({});".format(g.C_TABLE_NAME, syn)
+    return list(s_new.difference(s_old))
+
+def infer_cols_from_db():
+    if not table_exists():
+        return None
+
+    with engine.connect() as conn:
+        result = conn.execute(text(
+            "SELECT column_name FROM information_schema.columns where table_name = '{}';".format(g.C_TABLE_NAME)
+        ))
+        all_rows = result.all()
+        cols = [row[0] for row in all_rows]
+        return cols
+
+
+def update_columns_to(prev_cols, new_cols):
+    if prev_cols is None:
+        # Create a new table
+        syn = ",\n".join([f"\"{col}\" TEXT" for col in new_cols])
+        stmt = "CREATE TABLE {} ({});".format(g.C_TABLE_NAME, syn)
+        with engine.begin() as conn:
+            conn.execute(DDL(stmt))
+
+        return new_cols
+
+    added_cols = diff_additions(prev_cols, new_cols)
+    if len(added_cols) == 0:
+        return prev_cols
+
+    syn = ",\n".join([f"ADD COLUMN \"{col}\" TEXT" for col in added_cols])
+    stmt = "ALTER TABLE {} {};".format(g.C_TABLE_NAME, syn)
 
     with engine.begin() as conn:
         conn.execute(DDL(stmt))
 
-    return len(columns)
+    return [*prev_cols, *added_cols]
+
+def import_file(reader, csv_cols):
+    active_chunk = []
+    max_chunk_len = 50
+
+    count = 0
+
+    def send_chunk():
+        active_chunk.clear()
+
+    for row in reader:
+        active_chunk.append(row)
+        if len(active_chunk) >= max_chunk_len:
+            count += len(active_chunk)
+            send_chunk()
+
+    count += len(active_chunk)
+    send_chunk()
+
+    return count
+
+def process_filelist(files):
+    pbar_files = tqdm(total=len(files), desc="Files read", colour="#E36576")
+
+    prev_cols = infer_cols_from_db()
+    col_mappings = get_col_mappings()
+
+    total_rows = 0
+
+    for filepath in files:
+        logging.info("Reading file {}".format(filepath))
+
+        file = filepath.open()
+        reader = csv.reader(file)
+        csv_cols = [
+            col_mappings.get(col, col)
+            for col in next(reader) 
+        ]
+
+        prev_cols = update_columns_to(prev_cols, csv_cols)
+        total_rows += import_file(reader, csv_cols)
+        pbar_files.update()
+
+    pbar_files.close()
+    logging.info("{} row(s) added".format(total_rows))
 
 
-def init_import(needs_create_table: bool):
+def init_import():
     folder = Path(g.C_CSV_DIRECTORY)
     files = sorted(folder.glob('*.csv'))
 
@@ -145,66 +217,7 @@ def init_import(needs_create_table: bool):
         print("No CSV found")
         return
 
-    awaiting_columns = needs_create_table
-
-    active_chunk = []
-    max_chunk_len = 50
-
-    count = 0
-
-    def send_chunk():
-        if len(active_chunk) == 0:
-            return
-
-        col_count = len(active_chunk[0])
-
-        placeholder_values = ",".join([f":v{i}" for i in range(col_count)])
-        stmt = "INSERT INTO {} VALUES ({})".format(g.C_TABLE_NAME, placeholder_values)
-        values = [
-            {
-                f"v{i}": val
-                for i, val in enumerate(row)
-            }
-            for row in active_chunk
-        ]
-
-        with engine.begin() as conn:
-            conn.execute(text(stmt), values)
-
-        active_chunk.clear()
-
-    pbar_rows = tqdm(desc="Processing rows")
-    pbar_files = tqdm(total=len(files), desc="Files read", colour="#E36576")
-
-    for file in files:
-        logging.info("Reading file {}".format(file))
-        pbar_rows.set_description("Processing rows from file \"{}\"".format(str(file)))
-        with open(file, newline='') as f:
-            reader = csv.reader(f)
-            pbar_rows.update()
-            for i, row in enumerate(reader):
-                if i == 0:
-                    if awaiting_columns:
-                        awaiting_columns = False
-                        create_table(row)
-                    continue
-
-                active_chunk.append(row)
-                if len(active_chunk) >= max_chunk_len:
-                    count += len(active_chunk)
-                    send_chunk()
-
-            count += len(active_chunk)
-            send_chunk()
-        pbar_files.update()
-
-    pbar_rows.close()
-    pbar_files.close()
-
-    count += len(active_chunk)
-    send_chunk()
-
-    logging.info("{} row(s) added".format(count))
+    process_filelist(files)
 
 
 if __name__ == "__main__":
@@ -228,6 +241,7 @@ if __name__ == "__main__":
             level=logging.DEBUG
         )
 
+    ensure_db()
     engine = create_engine(create_url())
 
     if not args.update:
@@ -238,23 +252,21 @@ if __name__ == "__main__":
     else:
         command = (True, True)
 
-
     if command == (True, True):
         logging.info("Deleting table {}".format(g.C_TABLE_NAME))
         delete_table()
         print("Table deleted")
 
         logging.info("Importing data")
-        init_import(needs_create_table=True)
+        init_import()
         print("Import complete")
     elif command == (True, False):
         logging.info("Deleting table {}".format(g.C_TABLE_NAME))
         delete_table()
         print("Table deleted")
     elif command == (False, True):
-        create_tbl = not table_exists()
         logging.info("Importing data".format(g.C_TABLE_NAME))
-        init_import(needs_create_table=create_tbl)
+        init_import()
         print("Import complete")
     elif command == (False, False):
         print("Quitting")
