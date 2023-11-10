@@ -1,1 +1,5 @@
 Industry 2 > Yet Another
+City > *
+State > *
+Zip > *
+Phone > *

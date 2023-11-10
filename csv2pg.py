@@ -119,9 +119,25 @@ def get_col_mappings():
                 parts = line.split(">")
                 map_from = parts[0].strip()
                 map_to = parts[1].strip()
+                if map_to == '*':
+                    map_to = False
+
                 mappings[map_from] = map_to
 
     return mappings
+
+def apply_mappings(mappings, cols):
+    res = []
+    removed_indicies = set()
+    for i in range(len(cols)):
+        col = cols[i]
+        mapped = mappings.get(col, col)
+        if mapped == False:
+            removed_indicies.add(i)
+        else:
+            res.append(mapped)
+
+    return res, removed_indicies
 
 # Get any extra columns
 def diff_additions(old, new):
@@ -168,18 +184,22 @@ def update_columns_to(prev_cols, new_cols):
 
     return [*prev_cols, *added_cols]
 
-def import_file(reader, csv_cols, pbar_rows):
+def import_file(reader, csv_cols, removed_indicies, pbar_rows):
     active_chunk = []
     max_chunk_len = 50
 
     count = 0
 
+    insert_targets = [f'"{col}"' for col in csv_cols]
     placeholder_values = [f":v{i}" for i in range(len(csv_cols))]
+
     base_insert_stmt = "INSERT INTO {} ({}) VALUES ({});".format(
         g.C_TABLE_NAME,
-        ','.join([f'"{col}"' for col in csv_cols]),
+        ','.join(insert_targets),
         ",".join(placeholder_values)
     )
+
+    num_cols = len(csv_cols)
 
     def send_chunk():
         num_rows = len(active_chunk)
@@ -187,13 +207,17 @@ def import_file(reader, csv_cols, pbar_rows):
         if num_rows == 0:
             return 0
 
-        values = [
-            {
+        values = []
+        for row in active_chunk:
+            clean_row = [row[i] for i in range(len(row)) if i not in removed_indicies]
+            padding = [''] * max(0, num_cols - len(clean_row))
+            clean_row.extend(padding)
+
+            row_dict = {
                 f"v{i}": val
-                for i, val in enumerate(row)
+                for i, val in enumerate(clean_row[:num_cols]) # num_cols to cut off any extra cells
             }
-            for row in active_chunk
-        ]
+            values.append(row_dict)
 
         with engine.begin() as conn:
             conn.execute(text(base_insert_stmt), values)
@@ -229,13 +253,11 @@ def process_filelist(files):
         reader = csv.reader(file)
 
         # Get the first (columns) row and apply any required mappings
-        csv_cols = [
-            col_mappings.get(col, col)
-            for col in next(reader) 
-        ]
+        first_row = next(reader)
+        csv_cols, removed_indicies = apply_mappings(col_mappings, first_row)
 
         prev_cols = update_columns_to(prev_cols, csv_cols)
-        total_rows += import_file(reader, csv_cols, pbar_rows)
+        total_rows += import_file(reader, csv_cols, removed_indicies, pbar_rows)
         pbar_files.update()
 
     pbar_rows.close()
