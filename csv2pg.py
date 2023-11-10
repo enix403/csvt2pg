@@ -142,7 +142,6 @@ def infer_cols_from_db():
 
 def update_columns_to(prev_cols, new_cols):
     if prev_cols is None:
-        # Create a new table
         syn = ",\n".join([f"\"{col}\" TEXT" for col in new_cols])
         stmt = "CREATE TABLE {} ({});".format(g.C_TABLE_NAME, syn)
         with engine.begin() as conn:
@@ -162,7 +161,7 @@ def update_columns_to(prev_cols, new_cols):
 
     return [*prev_cols, *added_cols]
 
-def import_file(reader, csv_cols):
+def import_file(reader, csv_cols, pbar_rows):
     active_chunk = []
     max_chunk_len = 50
 
@@ -196,6 +195,7 @@ def import_file(reader, csv_cols):
         return num_rows
 
     for row in reader:
+        pbar_rows.update()
         active_chunk.append(row)
         if len(active_chunk) >= max_chunk_len:
             count += send_chunk()
@@ -205,6 +205,7 @@ def import_file(reader, csv_cols):
     return count
 
 def process_filelist(files):
+    pbar_rows = tqdm(desc="Processing rows")
     pbar_files = tqdm(total=len(files), desc="Files read", colour="#E36576")
 
     prev_cols = infer_cols_from_db()
@@ -213,6 +214,8 @@ def process_filelist(files):
     total_rows = 0
 
     for filepath in files:
+        pbar_rows.reset()
+        pbar_rows.set_description("Processing rows from file \"{}\"".format(str(filepath.name)))
         logging.info("Reading file {}".format(filepath))
 
         file = filepath.open()
@@ -223,9 +226,10 @@ def process_filelist(files):
         ]
 
         prev_cols = update_columns_to(prev_cols, csv_cols)
-        total_rows += import_file(reader, csv_cols)
+        total_rows += import_file(reader, csv_cols, pbar_rows)
         pbar_files.update()
 
+    pbar_rows.close()
     pbar_files.close()
     logging.info("{} row(s) added".format(total_rows))
 
