@@ -39,7 +39,7 @@ def init_config(config_file_loc: str, debug: bool):
     g.C_DB_NAME = config.get('db_name', None)
     g.C_DB_USER = config.get('db_user', None)
     g.C_DB_PASSWORD = config.get('db_password', None)
-    g.C_DB_HOST = config.get('db_host', None)
+    g.C_DB_HOST = config.get('db_host', "localhost")
     g.C_DB_PORT = config.get('db_port', None)
     g.C_TABLE_NAME = config.get('table_name', None)
     g.C_CSV_DIRECTORY = config.get('csv_directory', None)
