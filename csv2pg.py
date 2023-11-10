@@ -64,6 +64,7 @@ def create_url(use_database: bool = True):
         database=g.C_DB_NAME if use_database else None
     )
 
+# Create the database if it does not exist
 def ensure_db():
     url = create_url(use_database=False)
 
@@ -90,6 +91,7 @@ def ensure_db():
 
 engine: Engine
 
+# Check if the table exists
 def table_exists():
     with engine.connect() as conn:
         result = conn.execute(
@@ -121,6 +123,7 @@ def get_col_mappings():
 
     return mappings
 
+# Get any extra columns
 def diff_additions(old, new):
     s_old = set(old)
     s_new = set(new)
@@ -139,9 +142,12 @@ def infer_cols_from_db():
         cols = [row[0] for row in all_rows]
         return cols
 
-
+# Update the database schema to match `new_cols` and return the latest columns after
+# adding any extra columns
 def update_columns_to(prev_cols, new_cols):
     if prev_cols is None:
+        # If prev_cols is None, then it means the table is not created yet.
+        # Hence we create the table here.
         syn = ",\n".join([f"\"{col}\" TEXT" for col in new_cols])
         stmt = "CREATE TABLE {} ({});".format(g.C_TABLE_NAME, syn)
         with engine.begin() as conn:
@@ -149,6 +155,7 @@ def update_columns_to(prev_cols, new_cols):
 
         return new_cols
 
+    # If the table does exist, we alter it to account for additional columns
     added_cols = diff_additions(prev_cols, new_cols)
     if len(added_cols) == 0:
         return prev_cols
@@ -220,6 +227,8 @@ def process_filelist(files):
 
         file = filepath.open()
         reader = csv.reader(file)
+
+        # Get the first (columns) row and apply any required mappings
         csv_cols = [
             col_mappings.get(col, col)
             for col in next(reader) 
